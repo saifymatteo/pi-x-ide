@@ -73,11 +73,23 @@ Pi 加载 `pi-x-ide` 并查找 IDE 连接。当终端工作目录位于某个 ID
 ⧉ ✓ foo.ts#L10-L20
 ```
 
+会话记录会将你的提示与 IDE 上下文分开显示。Pi 会把 IDE 元数据显示为紫色自定义消息，并将相同元数据发送给代理：
+
+```text
+你的提示
+### IDE Context
+- **IDE**: vscode
+- **File**: `src/foo.ts`
+- **Selection**: L10-L20
+```
+
+附加内容只有 IDE、文件路径和选区行范围，不包含选中的源代码。这样代理需要更多上下文时可以自行读取文件。若打开的文件没有选区，则省略 `Selection` 行。蓝色用户提示保持不变。
+
 你可以反复按 `Ctrl+Alt+K` 把多个范围追加到同一条消息，也可以在两轮之间重新选中文本，每次附加新的上下文。
 
 ## 刚才发生了什么
 
-当你选中文本时，VS Code 扩展会通过本地 WebSocket 向 Pi 广播一条 `selection_changed` 通知。Pi 缓存最新选区并标记为 pending。按下附加快捷键时，Pi 把 `@file#Lx-Ly` mention 插入输入框。提交消息时，Pi 把选中文本包装后注入用户消息，再交给 LLM。
+当你选中文本时，IDE 会通过本地 WebSocket 向 Pi 广播一条 `selection_changed` 通知。Pi 缓存最新选区并标记为 pending。按下附加快捷键时，Pi 把 `@file#Lx-Ly` mention 插入输入框。提交消息时，Pi 会将 IDE 名称、文件路径和选区行范围作为单独的紫色自定义消息添加给代理，不会自动发送选中的源代码。
 
 完整机制 - lock file、host 解析、Neovim sidecar，以及为什么 Zed 用轮询 - 见 [发现机制](../explanation/discovery.md) 和 [架构](../explanation/architecture.md)。
 

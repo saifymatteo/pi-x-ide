@@ -91,16 +91,33 @@ context for that turn. After submission, the widget marker changes to `✓`:
 ⧉ ✓ foo.ts#L10-L20
 ```
 
+The transcript keeps your prompt and IDE context separate. Pi displays the IDE
+metadata as a purple custom message and sends that same metadata to the agent:
+
+```text
+Your prompt
+### IDE Context
+- **IDE**: vscode
+- **File**: `src/foo.ts`
+- **Selection**: L10-L20
+```
+
+Only IDE, file, and selection-range metadata are attached—not selected source
+contents. This lets the agent inspect the file itself when it needs more context.
+For an open file with no selection, the `Selection` line is omitted. The user's
+blue prompt remains unchanged.
+
 You can press `Ctrl+Alt+K` repeatedly to append several ranges to the same
 message, or select new text between turns to attach fresh context each time.
 
 ## What just happened
 
-When you select text, the VS Code extension broadcasts a `selection_changed`
-notification over a local WebSocket to Pi. Pi caches the latest selection and
-marks it pending. When you press the attach shortcut, Pi inserts the `@file#Lx-Ly`
-mention into your input. When you submit the message, Pi wraps the selected text
-and injects it into the user message before the LLM sees it.
+When you select text, the IDE broadcasts a `selection_changed` notification
+over a local WebSocket to Pi. Pi caches the latest selection and marks it
+pending. When you press the attach shortcut, Pi inserts the `@file#Lx-Ly` mention
+into your input. When you submit the message, Pi adds the IDE name, file path,
+and selected line range as a separate purple custom message. The selected source
+text is not sent automatically.
 
 For the full mechanism — lock files, host resolution, the Neovim sidecar, and why
 Zed is polled differently — read [How discovery works](../explanation/discovery.md)

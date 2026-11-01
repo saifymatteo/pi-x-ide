@@ -1,12 +1,11 @@
-// ABOUTME: Tracks editor selection state and injects selected IDE context into user prompts.
-// ABOUTME: Wraps Pi prompt lifecycle hooks so context formatting failures stay inside the extension.
+// ABOUTME: Adds concise IDE file and selection metadata as a model-visible custom message.
+// ABOUTME: Leaves the user's prompt unchanged so the agent can inspect source files directly.
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent" with {
   "resolution-mode": "import",
 };
-import { formatEditorContext, SYSTEM_REMINDER_TAG, SELECTED_CONTEXT_MARKER } from "../shared/format.js";
-import { readPiConfigContextPlacement } from "../shared/config.js";
-import { DEFAULT_CONTEXT_PLACEMENT, type ContextPlacement } from "../shared/config-options.js";
+import { formatEditorContextMessage } from "../shared/format.js";
 import { DIAGNOSTIC_CONTEXT_MARKER } from "./diagnostics.js";
+import type { EditorSelectionSnapshot } from "../shared/protocol.js";
 import { runPiBoundary } from "./safety.js";
 import type { PiIdeRuntime } from "./state.js";
 import { updateIdeUi } from "./ui.js";
@@ -14,81 +13,37 @@ import { updateIdeUi } from "./ui.js";
 export { clearLatestSelection, setLatestSelection } from "./selection.js";
 
 export function registerContextHandlers(pi: ExtensionAPI, runtime: PiIdeRuntime): void {
-  pi.on("before_agent_start", (_event, ctx) =>
+  pi.on("before_agent_start", (event, ctx) =>
     runPiBoundary(
       "Pi before_agent_start",
       runtime,
       () => {
         runtime.ctx = ctx;
-        if (!runtime.enabled) return;
-        if (!runtime.latestSelection) return;
-        if (runtime.attachState !== "pending") return;
-
-        runtime.turnSelection = runtime.latestSelection;
-      },
-      ctx,
-    ),
-  );
-
-  // Merge the active editor context into the submitted user prompt rather than
-  // adding a separate extension message.
-  pi.on("message_end", (event, ctx) =>
-    runPiBoundary(
-      "Pi message_end",
-      runtime,
-      () => {
-        runtime.ctx = ctx;
-        if (!runtime.enabled || !runtime.turnSelection) return;
-        if (event.message.role !== "user") return;
-        if (messageContainsMarker(event.message)) {
-          runtime.turnSelection = undefined;
-          return;
-        }
-
-        const text = `${formatEditorContext(runtime.turnSelection)}\n`;
-        const placement = readPiConfigContextPlacement({ projectDir: ctx?.cwd ?? runtime.cwd });
-        const message = mergeIntoUserMessage(event.message, text, placement);
+        if (!runtime.enabled || !runtime.latestSelection || runtime.attachState !== "pending") return;
+        const snapshot = runtime.latestSelection;
         runtime.attachState = "sent";
-        runtime.turnSelection = undefined;
         updateIdeUi(runtime, ctx);
-        return { message };
+        if (promptContainsContextMarker(event.prompt, snapshot)) return;
+
+        return {
+          message: {
+            customType: IDE_CONTEXT_MESSAGE_TYPE,
+            content: formatEditorContextMessage(snapshot),
+            display: true,
+          },
+        };
       },
       ctx,
     ),
   );
 }
 
-type UserContentBlock =
-  | { type: "text"; text: string; textSignature?: string }
-  | { type: "image"; data: string; mimeType: string };
+export const IDE_CONTEXT_MESSAGE_TYPE = "pi-x-ide/context";
 
-type MergeableUserMessage = {
-  role: "user";
-  content: string | UserContentBlock[];
-};
-
-// Exported for tests: placement ordering is the contract the contextPlacement option controls.
-export function mergeIntoUserMessage<T extends MergeableUserMessage>(
-  message: T,
-  text: string,
-  placement: ContextPlacement = DEFAULT_CONTEXT_PLACEMENT,
-): T {
-  const block: UserContentBlock = { type: "text", text };
-  const content = normalizeUserContent(message.content);
-  return {
-    ...message,
-    content: placement === "append" ? [...content, block] : [block, ...content],
-  };
-}
-
-function normalizeUserContent(content: MergeableUserMessage["content"]): UserContentBlock[] {
-  return typeof content === "string" ? [{ type: "text", text: content }] : content;
-}
-
-function messageContainsMarker(message: MergeableUserMessage): boolean {
-  const serialized = JSON.stringify(message);
+function promptContainsContextMarker(prompt: string, snapshot: EditorSelectionSnapshot): boolean {
   return (
-    serialized.includes(`<${SYSTEM_REMINDER_TAG}><${SELECTED_CONTEXT_MARKER}>`) ||
-    serialized.includes(DIAGNOSTIC_CONTEXT_MARKER)
+    prompt.includes(DIAGNOSTIC_CONTEXT_MARKER) ||
+    (prompt.includes("<system-reminder><selected-context>") &&
+      (prompt.includes(snapshot.filePath) || (!!snapshot.workspaceFolder && prompt.includes(snapshot.workspaceFolder))))
   );
 }

@@ -329,7 +329,6 @@ function createFakeExtensionApi(): {
       if (event === "session_start") sessionStart = handler;
       if (event === "session_shutdown") sessionShutdown = handler;
     },
-    sendMessage: () => {},
     appendEntry: () => {},
   } as unknown as ExtensionAPI;
 
