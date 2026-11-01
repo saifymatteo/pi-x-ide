@@ -67,6 +67,23 @@ export function snapshotKey(snapshot: EditorSelectionSnapshot): string {
   });
 }
 
+export function formatEditorContextMessage(
+  snapshot: EditorSelectionSnapshot,
+  options: { env?: NodeJS.ProcessEnv } = {},
+): string {
+  const filePath = toRelativeDisplayPath(
+    snapshot.filePath,
+    snapshot.workspaceFolder,
+    undefined,
+    options.env,
+  ).replaceAll("`", "\\`");
+  const lines = ["### IDE Context", `- **IDE**: ${snapshot.source}`, `- **File**: \`${filePath}\``];
+  if (snapshot.ranges.length > 0) {
+    lines.push(`- **Selection**: ${snapshot.ranges.map(formatLineRange).join(", ")}`);
+  }
+  return lines.join("\n");
+}
+
 export function formatEditorContext(
   snapshot: EditorSelectionSnapshot,
   options: { maxChars?: number; env?: NodeJS.ProcessEnv } = {},

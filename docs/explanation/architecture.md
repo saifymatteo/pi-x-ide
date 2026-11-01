@@ -45,9 +45,10 @@ User selects text in the IDE
 │ Pi prompt lifecycle  (src/pi/context.ts)                 │
 │                                                          │
 │  before_agent_start: snapshots the pending selection.    │
-│  message_end: wraps it in <selected-context>, then       │
-│  places it before or after the prompt based on           │
-│  contextPlacement. attachState = "sent".                 │
+│  Adds a visible custom message containing only IDE, file, │
+│  and selected line range metadata. Prompt stays intact;   │
+│  agent can read source from disk as needed.               │
+│  attachState = "sent".                                   │
 └──────────────────────────────────────────────────────────┘
 ```
 

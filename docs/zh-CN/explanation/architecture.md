@@ -39,8 +39,8 @@ Zed 是例外：它没有插件，Pi 直接读取 Zed 的本地状态数据库�
 │ Pi prompt 生命周期  (src/pi/context.ts)                  │
 │                                                          │
 │  before_agent_start：快照 pending 的选区。               │
-│  message_end：包装进 <selected-context>，再根据           │
-│  contextPlacement 放在 prompt 前面或后面。               │
+│  添加一条可见的自定义消息，仅包含 IDE、文件和选区行范围。│
+│  用户 prompt 保持不变；代理可按需自行读取源文件。       │
 │  attachState = "sent"。                                  │
 └──────────────────────────────────────────────────────────┘
 ```
