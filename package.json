@@ -1,7 +1,10 @@
 {
-  "name": "pi-x-ide",
+  "name": "@saifymatteo/pi-x-ide",
   "version": "1.20.1",
   "description": "Pi extension package for IDE selection context integration.",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist/src",
     "schemas",
@@ -18,7 +21,7 @@
     "RELEASE.md"
   ],
   "scripts": {
-    "prepack": "rm -rf dist && bunx tsgo -p tsconfig.publish.json && bun run scripts/build-pi-entry.mjs"
+    "prepack": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && node node_modules/@typescript/native-preview/bin/tsgo -p tsconfig.publish.json && node scripts/build-pi-entry.mjs"
   },
   "keywords": [
     "pi-package",
