@@ -12,7 +12,7 @@ Neovim 支持由一个 Lua 插件加一个 **sidecar** 进程组成。插件观�
 
 ```lua
 {
-  "balaenis/pi-x-ide",
+  "saifymatteo/pi-x-ide",
   build = function(plugin)
     vim.opt.rtp:prepend(plugin.dir .. "/ide-plugins/nvim")
     require("pi_x_ide.download").run({ refresh = true })

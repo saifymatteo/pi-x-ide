@@ -8,13 +8,13 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/balaenis/pi-x-ide",
+    "url": "https://github.com/saifymatteo/pi-x-ide",
     "directory": "ide-plugins/vscode"
   },
   "bugs": {
-    "url": "https://github.com/balaenis/pi-x-ide/issues"
+    "url": "https://github.com/saifymatteo/pi-x-ide/issues"
   },
-  "homepage": "https://github.com/balaenis/pi-x-ide#readme",
+  "homepage": "https://github.com/saifymatteo/pi-x-ide#readme",
   "type": "commonjs",
   "engines": {
     "vscode": "^1.120.0"

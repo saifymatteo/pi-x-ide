@@ -15,7 +15,7 @@ fallback.
 
 ```lua
 {
-  "balaenis/pi-x-ide",
+  "saifymatteo/pi-x-ide",
   build = function(plugin)
     vim.opt.rtp:prepend(plugin.dir .. "/ide-plugins/nvim")
     require("pi_x_ide.download").run({ refresh = true })

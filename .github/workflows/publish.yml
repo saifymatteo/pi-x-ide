@@ -1,38 +1,28 @@
-name: Publish Package
-
+# Publish to npm on version tags — auth via npm Trusted Publishing (OIDC), no NPM_TOKEN.
+name: Publish to npm
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "npm tag (latest or next)"
-        required: true
-        type: choice
-        options:
-          - latest
-          - next
-  repository_dispatch:
-    types: [publish-package]
-
-permissions:
-  id-token: write
-  contents: read
+  push:
+    tags:
+      - "v*"
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - uses: jdx/mise-action@v4
-        with:
-          install: true
-          cache: true
-          experimental: true
-
-      - name: Publish to npm
-        env:
-          TAG: ${{ github.event.client_payload.tag || github.event.inputs.tag || 'latest' }}
-        run: NPM_TAG="$TAG" mise run publish
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - name: Ensure npm supports trusted publishing (>= 11.5)
+        run: npm install -g npm@latest
+      - name: Assert tag matches package.json version
+        run: |
+          node -e "const v=require('./package.json').version; if (process.env.GITHUB_REF_NAME !== 'v'+v) { console.error('Tag ' + process.env.GITHUB_REF_NAME + ' does not match package.json version v' + v); process.exit(1); }"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm publish --ignore-scripts

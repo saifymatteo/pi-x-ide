@@ -80,7 +80,7 @@ local function ensure_executable(path)
 end
 
 local marker_version = "sha256-v1"
-local release_api_url = "https://api.github.com/repos/balaenis/pi-x-ide/releases/latest"
+local release_api_url = "https://api.github.com/repos/saifymatteo/pi-x-ide/releases/latest"
 
 local function verification_token(path)
   local stat = vim.loop.fs_stat(path)

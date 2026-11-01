@@ -14,7 +14,7 @@ Pi-side variables can be set as real environment variables **or** in config
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/balaenis/pi-x-ide/refs/heads/main/schemas/config.json",
+  "$schema": "https://raw.githubusercontent.com/saifymatteo/pi-x-ide/refs/heads/main/schemas/config.json",
   "fixPrompt": "Analyze the errors and warnings at the following location, and try to fix them:\n{DIAGNOSTIC}",
   "status_display": "widget",
   "env": {
