@@ -1,69 +1,34 @@
-# Pi × IDE
+# Pi × IDE — Saifymatteo fork
 
 **English** | [简体中文](README.zh-CN.md)
 
-> Pi extension package for IDE selection context integration.
+This is [@saifymatteo/pi-x-ide](https://github.com/saifymatteo/pi-x-ide), a fork of [@balaenis/pi-x-ide](https://github.com/balaenis/pi-x-ide).
 
-Automatically attaches the currently opened or selected file and text range from
-VS Code, Zed, Neovim, and JetBrains IDEs to the Pi TUI, submitting them as
-conversation context to the LLM.
+For the original project overview, supported IDEs, installation instructions, and general documentation, see the [upstream README](https://github.com/balaenis/pi-x-ide#readme).
 
-<img width="3822" height="2010" alt="pi-x-ide-guide" src="https://github.com/user-attachments/assets/70abe40d-e4ac-4c2e-aca7-80d2e7867945" />
+## Changes in this fork
 
-## Quick start
+When IDE context is attached to a prompt, Pi displays it as a separate purple **IDE Context** message. The message contains the IDE name, file path, and—when available—the selected line range. It does not include selected source contents, so the agent can inspect the file itself when it needs more context. Your prompt remains unchanged.
 
-```bash
-pi install npm:pi-x-ide
+For example:
+
+```text
+### IDE Context
+- **IDE**: vscode
+- **File**: `src/main.ts`
+- **Selection**: L10-L20
 ```
 
-Install the IDE extension for your editor, then start Pi from your project
-directory:
-
-```bash
-pi
-```
-
-Open a file, select some text, and press `Ctrl+Alt+K` in the Pi TUI to attach it
-as `@src/foo.ts#L10-L20`.
+When no text is selected, the selection line is omitted. For open-file-only context, the message includes the file metadata without attaching its contents.
 
 ## Documentation
 
-**Learning**
-
-- [Get started](docs/tutorials/get-started.md) — from install to your first
-  attached selection
-
-**How-to guides**
-
-- [Install for VS Code / Cursor / Windsurf](docs/how-to/install-vscode.md)
-- [Use with Zed](docs/how-to/install-zed.md)
-- [Install the Neovim plugin](docs/how-to/install-neovim.md)
-- [Install the JetBrains plugin](docs/how-to/install-jetbrains.md)
-- [Use over WSL2](docs/how-to/use-wsl2.md)
-- [Troubleshoot a missing connection](docs/how-to/troubleshoot-connection.md)
-
-**Reference**
-
-- [`/ide` commands](docs/reference/commands.md)
+- [Get started](docs/tutorials/get-started.md)
 - [Configuration](docs/reference/configuration.md)
-- [Feature parity](docs/reference/feature-parity.md)
-- [Protocol reference](docs/reference/protocol.md)
-
-**Explanation**
-
-- [How discovery works](docs/explanation/discovery.md)
 - [Architecture](docs/explanation/architecture.md)
-- [Effect adoption (contributors)](docs/explanation/effect.md)
 
-## Development
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for build, local testing, and release
-instructions.
-
-## Reference
-
-- [opencode](https://github.com/anomalyco/opencode)
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development instructions.
 
 ## License
 
-[Apache-2.0](LICENSE)
+This fork retains the upstream [Apache-2.0 license](LICENSE).
