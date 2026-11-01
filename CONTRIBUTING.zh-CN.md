@@ -15,7 +15,7 @@
 ## 安装与构建
 
 ```bash
-git clone https://github.com/balaenis/pi-x-ide.git
+git clone https://github.com/saifymatteo/pi-x-ide.git
 cd pi-x-ide
 mise run setup
 mise run build

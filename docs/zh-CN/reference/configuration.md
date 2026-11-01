@@ -11,7 +11,7 @@ Pi 侧变量可设为真实环境变量 **或** 写入 config 的 `env`。真实
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/balaenis/pi-x-ide/refs/heads/main/schemas/config.json",
+  "$schema": "https://raw.githubusercontent.com/saifymatteo/pi-x-ide/refs/heads/main/schemas/config.json",
   "fixPrompt": "Analyze the errors and warnings at the following location, and try to fix them:\n{DIAGNOSTIC}",
   "status_display": "widget",
   "env": {
