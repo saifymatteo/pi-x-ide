@@ -22,7 +22,7 @@ import { containPiError } from "./safety.js";
 import { clearLatestSelection, setLatestSelection } from "./selection.js";
 import type { PiIdeRuntime } from "./state.js";
 import { clearIdeUi, updateIdeUi } from "./ui.js";
-import { startZedPolling, stopZedPolling } from "./zed.js";
+import { startZedPolling, startZedWatch, stopZedPolling, stopZedWatch } from "./zed.js";
 
 const INSTALL_RECONNECT_RETRY_MS = 1_500;
 const INSTALL_RECONNECT_TIMEOUT_MS = 15_000;
@@ -44,6 +44,7 @@ export async function startSession(pi: ExtensionAPI, runtime: PiIdeRuntime, ctx:
   runtime.cwd = ctx.cwd;
   const generation = runtime.sessionGeneration;
 
+  stopZedWatch(runtime);
   stopZedPolling(runtime);
   stopReconnectScheduling(runtime);
   if (!runtime.enabled) {
@@ -53,11 +54,13 @@ export async function startSession(pi: ExtensionAPI, runtime: PiIdeRuntime, ctx:
   }
   void maybeAutoInstallAndReconnect(runtime, ctx, generation);
   await connectAutoWithZedFallback(runtime, ctx, generation);
+  if (runtime.sessionGeneration === generation) startZedWatch(runtime, ctx, { generation });
 }
 
 /** Session shutdown cleanup after the shell has already bumped session generation. */
 export function shutdownSession(runtime: PiIdeRuntime, ctx: ExtensionContext): Promise<void> {
   runtime.ctx = ctx;
+  stopZedWatch(runtime);
   stopZedPolling(runtime);
   stopReconnectScheduling(runtime);
   const connection = runtime.connection;

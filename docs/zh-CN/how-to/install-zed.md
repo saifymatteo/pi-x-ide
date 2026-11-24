@@ -19,7 +19,7 @@ Zed 无需扩展。无论在 Zed 终端还是其他任何终端中运行，Pi �
 
 Pi 检测到 Zed 环境（`ZED_TERM=true` 或 `TERM_PROGRAM=zed`）后开始轮询 Zed 的 SQLite 数据库。
 
-也可以在其他任意终端中启动 Pi。当没有匹配的 VS Code 或 JetBrains lock file 时，如果 Zed 正在运行且某个打开的窗口包含 Pi 的工作目录，Pi 会连接 Zed。Pi 只读取 Zed 当前会话中的窗口，已关闭的项目会被忽略。Zed 退出后 Pi 断开连接；运行 `/ide` 可重新连接。
+也可以在其他任意终端中启动 Pi。当没有匹配的 VS Code 或 JetBrains lock file 时，如果 Zed 正在运行且某个打开的窗口包含 Pi 的工作目录，Pi 会连接 Zed。Pi 只读取 Zed 当前会话中的窗口，已关闭的项目会被忽略。没有 IDE 连接时，Pi 每 5 秒重新检查一次，因此在启动 Pi 之后再用 Zed 打开项目，或退出并重新打开 Zed，Pi 都会自动连接。运行 `/ide` 可立即连接。
 
 在 Linux 上，Pi 通过 Zed 的 `zed-stable.sock` 检查 Zed 是否在运行。在 macOS、Windows 和 WSL 上仅依赖当前会话检查。Pi 输入框上方出现 widget，显示活跃文件和选区。
 

@@ -22,6 +22,8 @@ import {
   resolveZedPollIntervalMs,
   startZedPolling,
   stopZedPolling,
+  startZedWatch,
+  stopZedWatch,
   PI_X_IDE_ZED_DB_ENV,
   PI_X_IDE_ZED_POLL_INTERVAL_MS_ENV,
 } from "../src/pi/zed.js";
@@ -836,4 +838,22 @@ void test("isZedProcessAlive checks the bound Zed socket on Linux", () => {
     isZedProcessAlive(dbPath, {}, () => "", "darwin"),
     true,
   );
+});
+
+void test("startZedWatch attaches once Zed opens the project", async () => {
+  const { dir, dbPath, cleanup } = await createSessionFixture();
+  after(cleanup);
+  const runtime = createRuntime();
+  startZedWatch(runtime, createContext(dir), { dbPath, env: {}, intervalMs: 10, isAlive: () => true });
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.equal(runtime.zedPollFiber, undefined, "project not open yet");
+
+  insertSessionEditor(dbPath, 1, dir, "current", "hello world");
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.ok(runtime.zedPollFiber, "attached after project opened");
+  assert.equal(runtime.connectedServer?.ide, "zed");
+
+  stopZedWatch(runtime);
+  stopZedPolling(runtime);
+  assert.equal(runtime.zedWatchFiber, undefined);
 });

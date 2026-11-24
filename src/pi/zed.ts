@@ -510,6 +510,75 @@ export function stopZedPolling(runtime: PiIdeRuntime): void {
   runtime.zedPollWalMtimeMs = undefined;
 }
 
+export const ZED_WATCH_INTERVAL_MS = 5000;
+
+export function stopZedWatch(runtime: PiIdeRuntime): void {
+  const fiber = runtime.zedWatchFiber;
+  runtime.zedWatchFiber = undefined;
+  if (fiber) Effect.runFork(Fiber.interrupt(fiber));
+}
+
+/**
+ * While Pi is idle (no IDE connection, no reconnect pending, no Zed polling),
+ * periodically try to attach to Zed, so opening the project in Zed after Pi
+ * started, or reopening Zed after quitting it, connects without `/ide`.
+ * Checks are skipped while Zed's WAL is unchanged, which keeps WSL cheap.
+ */
+export function startZedWatch(
+  runtime: PiIdeRuntime,
+  ctx: Pick<ExtensionContext, "cwd" | "hasUI" | "ui">,
+  options?: {
+    intervalMs?: number;
+    generation?: number;
+    env?: NodeJS.ProcessEnv;
+    dbPath?: string;
+    isAlive?: () => boolean;
+  },
+): void {
+  stopZedWatch(runtime);
+  const intervalMs = options?.intervalMs ?? ZED_WATCH_INTERVAL_MS;
+  const generation = options?.generation ?? runtime.sessionGeneration;
+  let lastWalMtimeMs: number | undefined;
+
+  const tick = (): void => {
+    if (!runtime.enabled || runtime.connection || runtime.reconnectFiber || runtime.zedPollFiber) return;
+    const env = resolvePiConfigEnv(options?.env ?? process.env);
+    const dbPath = options?.dbPath ?? resolveZedDbPath(env);
+    if (!dbPath) return;
+    let walMtimeMs: number | undefined;
+    try {
+      walMtimeMs = statSync(`${dbPath}-wal`).mtimeMs;
+    } catch {
+      // WAL absent — check every tick.
+    }
+    if (walMtimeMs !== undefined && walMtimeMs === lastWalMtimeMs) return;
+    lastWalMtimeMs = walMtimeMs;
+    startZedPolling(runtime, ctx, { dbPath, env, generation, isAlive: options?.isAlive });
+  };
+
+  const fiber = Effect.runFork(
+    Effect.gen(function* () {
+      while (runtime.sessionGeneration === generation) {
+        yield* Effect.sleep(`${intervalMs} millis`);
+        if (runtime.sessionGeneration !== generation) return;
+        try {
+          tick();
+        } catch (error) {
+          containPiError(runtime, "Zed watch", error, ctx as ExtensionContext);
+          return;
+        }
+      }
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          if (runtime.zedWatchFiber === fiber) runtime.zedWatchFiber = undefined;
+        }),
+      ),
+    ),
+  );
+  runtime.zedWatchFiber = fiber;
+}
+
 export function startZedPolling(
   runtime: PiIdeRuntime,
   ctx: Pick<ExtensionContext, "cwd" | "hasUI" | "ui">,

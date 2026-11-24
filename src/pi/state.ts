@@ -33,6 +33,8 @@ export interface PiIdeRuntime {
   zedPollWalMtimeMs?: number;
   /** Last resolved Zed poll interval (ms); set while polling for observability/tests. */
   zedPollIntervalMs?: number;
+  /** Idle watcher that attaches to Zed once it opens this project. */
+  zedWatchFiber?: RuntimeFiber<void, never>;
   installingIdeIds: Set<string>;
   sessionGeneration: number;
   /** True while the current session_start handler is in progress (not factory preload). */

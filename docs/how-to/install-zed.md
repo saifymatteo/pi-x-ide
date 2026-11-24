@@ -25,8 +25,9 @@ polling Zed's SQLite database.
 You can also start Pi in any other terminal. When no VS Code or JetBrains lock file
 matches, Pi attaches to Zed if Zed is running and one of its open windows contains
 Pi's working directory. It reads only windows from Zed's current session, so
-projects you closed are ignored. When Zed quits, Pi disconnects; run `/ide` to
-attach again.
+projects you closed are ignored. While no IDE is connected, Pi re-checks every
+5 seconds, so it attaches when you open the project in Zed after starting Pi, and
+reattaches after you quit and reopen Zed. Run `/ide` to attach immediately.
 
 On Linux, Pi checks that Zed is running through Zed's `zed-stable.sock`. On macOS,
 Windows, and WSL it relies on the current-session check alone. A widget appears above the Pi input box showing the

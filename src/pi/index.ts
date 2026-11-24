@@ -115,7 +115,7 @@ export function registerPiIdeExtension(pi: ExtensionAPI, options: RegisterPiIdeE
         }
 
         const shouldLoadRuntime =
-          !!runtime.connection || !!runtime.reconnectFiber || !!runtime.zedPollFiber || !!pendingStartup;
+          !!runtime.connection || !!runtime.reconnectFiber || !!runtime.zedPollFiber || !!runtime.zedWatchFiber || !!pendingStartup;
 
         if (shouldLoadRuntime) {
           try {
