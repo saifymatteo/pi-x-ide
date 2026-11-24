@@ -61,7 +61,10 @@ are active. Refresh keeps the endpoint identity and the auth token, and it updat
 freshness data. If the file is deleted while the producer is still active, the
 lock can stay missing until the next heartbeat.
 
-Zed does not write this lock file. Pi reads Zed state from SQLite.
+Zed does not write this lock file. Pi reads Zed state from SQLite. Outside a Zed
+terminal, Pi treats "Zed is running and a window in its current session
+(`kv_store.session_id`) contains the cwd" as the equivalent of a matching lock
+file. It tries this only after no lock file matched.
 
 When you close your IDE, the plugin removes its lock file. If the IDE crashes, Pi
 reclaims the file on the next scan when liveness fails or age-only cleanup applies.

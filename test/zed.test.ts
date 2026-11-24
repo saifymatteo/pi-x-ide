@@ -12,6 +12,8 @@ import { CONFIG_DIR_NAME, resolvePiConfigEnv } from "../src/shared/config.js";
 import type { LockFileCandidate } from "../src/shared/protocol.js";
 import {
   isZedTerminal,
+  isZedProcessAlive,
+  zedSessionHasWorkspace,
   isWsl,
   normalizeZedPathForHost,
   resolveZedDbPath,
@@ -679,9 +681,9 @@ function createCandidate(workspaceFolder = "/tmp"): LockFileCandidate {
   };
 }
 
-void test("startZedPolling returns false when not in Zed terminal", () => {
+void test("startZedPolling returns false outside Zed terminal when Zed is not running", () => {
   const runtime = createRuntime();
-  const result = startZedPolling(runtime, createContext(), { env: {} });
+  const result = startZedPolling(runtime, createContext(), { env: {}, isAlive: () => false });
   assert.equal(result, false);
   assert.equal(runtime.zedPollFiber, undefined);
 });
@@ -751,4 +753,87 @@ void test("startZedPolling clears stale WebSocket candidate state", async () => 
   assert.equal(runtime.connectedServer?.ide, "zed");
   assert.equal(runtime.connectionStatus, "connected");
   stopZedPolling(runtime);
+});
+
+// ── Out-of-terminal detection ─────────────────────────────────
+
+async function createSessionFixture(): Promise<Fixture> {
+  const dir = await mkdtemp(join(tmpdir(), "pi-x-ide-zed-session-"));
+  const dbPath = join(dir, "db.sqlite");
+  const db = new DatabaseSync(dbPath);
+  db.exec(`
+    CREATE TABLE kv_store (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE workspaces (workspace_id INTEGER PRIMARY KEY, paths TEXT, timestamp INTEGER, session_id TEXT);
+    CREATE TABLE panes (pane_id INTEGER PRIMARY KEY, workspace_id INTEGER, active INTEGER);
+    CREATE TABLE items (item_id INTEGER, workspace_id INTEGER, pane_id INTEGER, kind TEXT, active INTEGER);
+    CREATE TABLE editors (item_id INTEGER, workspace_id INTEGER, buffer_path TEXT, contents TEXT);
+    CREATE TABLE editor_selections (editor_id INTEGER, workspace_id INTEGER, start INTEGER, end INTEGER);
+    INSERT INTO kv_store VALUES ('session_id', 'current');
+  `);
+  db.close();
+  return { dir, dbPath, cleanup: () => rm(dir, { recursive: true, force: true }) };
+}
+
+function insertSessionEditor(dbPath: string, id: number, path: string, sessionId: string | null, text: string): void {
+  const db = new DatabaseSync(dbPath);
+  db.prepare("INSERT INTO workspaces VALUES (?, ?, ?, ?)").run(id, JSON.stringify([path]), id, sessionId);
+  db.prepare("INSERT INTO panes VALUES (?, ?, 1)").run(id, id);
+  db.prepare("INSERT INTO items VALUES (?, ?, ?, 'Editor', 1)").run(id, id, id);
+  db.prepare("INSERT INTO editors VALUES (?, ?, ?, ?)").run(id, id, join(path, "a.ts"), text);
+  db.prepare("INSERT INTO editor_selections VALUES (?, ?, 0, 5)").run(id, id);
+  db.close();
+}
+
+void test("zedSessionHasWorkspace only matches windows in the current Zed session", async () => {
+  const { dir, dbPath, cleanup } = await createSessionFixture();
+  after(cleanup);
+  const open = join(dir, "open");
+  const closed = join(dir, "closed");
+  insertSessionEditor(dbPath, 1, open, "current", "hello world");
+  insertSessionEditor(dbPath, 2, closed, null, "stale world");
+
+  assert.equal(zedSessionHasWorkspace(dbPath, join(open, "sub")), true);
+  assert.equal(zedSessionHasWorkspace(dbPath, closed), false);
+  assert.equal(zedSessionHasWorkspace(dbPath, join(dir, "elsewhere")), false);
+});
+
+void test("resolveZedSelection currentSessionOnly ignores closed windows", async () => {
+  const { dir, dbPath, cleanup } = await createSessionFixture();
+  after(cleanup);
+  insertSessionEditor(dbPath, 1, dir, null, "stale world");
+  assert.ok(resolveZedSelection({ dbPath, cwd: dir }));
+  assert.equal(resolveZedSelection({ dbPath, cwd: dir, currentSessionOnly: true }), undefined);
+
+  insertSessionEditor(dbPath, 2, dir, "current", "fresh world");
+  assert.equal(resolveZedSelection({ dbPath, cwd: dir, currentSessionOnly: true })?.ranges[0]?.text, "fresh");
+});
+
+void test("startZedPolling outside Zed terminal requires a live Zed with cwd open", async () => {
+  const { dir, dbPath, cleanup } = await createSessionFixture();
+  after(cleanup);
+  insertSessionEditor(dbPath, 1, dir, "current", "hello world");
+
+  const runtime = createRuntime();
+  assert.equal(startZedPolling(runtime, createContext(dir), { dbPath, env: {}, isAlive: () => false }), false);
+  assert.equal(startZedPolling(runtime, createContext("/nowhere"), { dbPath, env: {}, isAlive: () => true }), false);
+  assert.equal(startZedPolling(runtime, createContext(dir), { dbPath, env: {}, isAlive: () => true }), true);
+  assert.equal(runtime.connectedServer?.ide, "zed");
+  stopZedPolling(runtime);
+});
+
+void test("isZedProcessAlive checks the bound Zed socket on Linux", () => {
+  const dbPath = "/home/u/.local/share/zed/db/0-stable/db.sqlite";
+  const bound = "0000: 00000002 00000000 00000000 0002 03 72943 /home/u/.local/share/zed/zed-stable.sock\n";
+  assert.equal(
+    isZedProcessAlive(dbPath, {}, () => bound, "linux"),
+    true,
+  );
+  assert.equal(
+    isZedProcessAlive(dbPath, {}, () => "", "linux"),
+    false,
+  );
+  assert.equal(
+    isZedProcessAlive(dbPath, {}, () => "", "darwin"),
+    true,
+  );
 });

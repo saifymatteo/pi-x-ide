@@ -39,7 +39,7 @@ lock file 是临时的。Pi 先解析每个 lock，再应用过期策略。当 P
 
 VS Code、Neovim 和 JetBrains 在活动期间每 15 分钟刷新自己拥有的 lock。刷新会保留端点身份和 auth token，并更新新鲜度数据。若生产者仍在运行时文件被删除，lock 可能直到下一次心跳才重新出现。
 
-Zed 不写入这种 lock file。Pi 从 SQLite 读取 Zed 状态。
+Zed 不写入这种 lock file。Pi 从 SQLite 读取 Zed 状态。在 Zed 终端之外，Pi 把“Zed 正在运行，且其当前会话（`kv_store.session_id`）中有窗口包含 cwd”视为等同于匹配的 lock file，并且只在没有 lock file 匹配时才尝试。
 
 关闭 IDE 时插件会移除自己的 lock file。IDE 崩溃时，Pi 在下次扫描中于活性检查失败或仅按年龄清理时回收该文件。
 

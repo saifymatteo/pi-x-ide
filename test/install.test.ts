@@ -207,3 +207,36 @@ function createCommandContext(): ExtensionCommandContext {
     },
   } as unknown as ExtensionCommandContext;
 }
+
+void test("/ide with no lock files falls back to Zed instead of warning", async () => {
+  type RegisteredCommand = { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> };
+  let registered: RegisteredCommand | undefined;
+  const pi = {
+    registerCommand: (_name: string, command: RegisteredCommand) => {
+      registered = command;
+    },
+    registerShortcut: () => {},
+  } as unknown as ExtensionAPI;
+  const runtime = createRuntime();
+  registerIdeCommand(pi, runtime, {
+    refreshCandidates: () => Promise.resolve([]),
+    connectAuto: () => {
+      runtime.connectedServer = { name: "Zed", ide: "zed" };
+      return Promise.resolve();
+    },
+    connectCandidate: () => Promise.resolve(),
+    disconnect: () => Promise.resolve(),
+    installExtension: () => Promise.resolve(),
+  });
+
+  const notices: Array<{ message: string; type: string }> = [];
+  const ctx = createCommandContext();
+  ctx.ui.notify = (message: string, type?: string) => notices.push({ message, type: type ?? "info" });
+  assert.ok(registered);
+  await registered.handler("", ctx);
+  assert.deepEqual(
+    notices.map((n) => n.type),
+    ["info"],
+  );
+  assert.match(notices[0]?.message ?? "", /Zed/);
+});

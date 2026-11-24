@@ -123,6 +123,15 @@ async function showPicker(
 ): Promise<void> {
   const candidates = await actions.refreshCandidates(ctx);
   if (candidates.length === 0) {
+    // Zed has no lock file; fall back to (re)attaching via Zed's SQLite state.
+    if (runtime.connectedServer?.ide !== "zed") {
+      runtime.enabled = true;
+      await actions.connectAuto(ctx);
+    }
+    if (runtime.connectedServer?.ide === "zed") {
+      ctx.ui.notify("Connected to Zed (no lock file; reading Zed's local state).", "info");
+      return;
+    }
     ctx.ui.notify("No matching IDE connections found.", "warning");
     return;
   }

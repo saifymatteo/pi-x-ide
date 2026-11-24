@@ -1,8 +1,8 @@
 # Use Pi × IDE with Zed
 
-Zed requires no extension. Pi detects Zed automatically when you run it inside a
-Zed terminal and reads Zed's local state database to track the active file and
-selection.
+Zed requires no extension. Pi detects Zed automatically, from a Zed terminal or
+from any other terminal, and reads Zed's local state database to track the active
+file and selection.
 
 ## Prerequisites
 
@@ -20,7 +20,16 @@ selection.
    ```
 
 Pi detects the Zed environment (`ZED_TERM=true` or `TERM_PROGRAM=zed`) and begins
-polling Zed's SQLite database. A widget appears above the Pi input box showing the
+polling Zed's SQLite database.
+
+You can also start Pi in any other terminal. When no VS Code or JetBrains lock file
+matches, Pi attaches to Zed if Zed is running and one of its open windows contains
+Pi's working directory. It reads only windows from Zed's current session, so
+projects you closed are ignored. When Zed quits, Pi disconnects; run `/ide` to
+attach again.
+
+On Linux, Pi checks that Zed is running through Zed's `zed-stable.sock`. On macOS,
+Windows, and WSL it relies on the current-session check alone. A widget appears above the Pi input box showing the
 active file and selection.
 
 ## Verify it works

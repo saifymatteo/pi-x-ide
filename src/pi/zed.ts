@@ -2,7 +2,7 @@
 // ABOUTME: Normalizes Zed paths and selections while containing polling failures.
 import { copyFileSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -32,6 +32,72 @@ export const ZED_POLL_INTERVAL_MS_MAX = 2000;
 export function isZedTerminal(env: NodeJS.ProcessEnv = process.env): boolean {
   const configuredEnv = resolvePiConfigEnv(env);
   return configuredEnv.ZED_TERM === "true" || configuredEnv.TERM_PROGRAM?.toLowerCase() === "zed";
+}
+
+// ── Out-of-terminal detection ──────────────────────────────────
+
+/**
+ * Whether the Zed instance that owns `dbPath` is running.
+ * Linux: Zed binds `<data>/zed-<channel>.sock` while alive; a bound socket is
+ * listed in /proc/net/unix, a stale file left by a crash is not. Elsewhere
+ * (macOS, Windows, WSL reading a Windows DB) there is no cheap probe, so this
+ * returns true and the current-session check alone decides.
+ */
+export function isZedProcessAlive(
+  dbPath: string,
+  env: NodeJS.ProcessEnv = process.env,
+  readProcNetUnix: () => string = () => readFileSync("/proc/net/unix", "utf8"),
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (platform !== "linux" || (isWsl(env) && dbPath.startsWith("/mnt/"))) return true;
+  const channelDir = basename(dirname(dbPath)); // e.g. "0-stable"
+  const channel = channelDir.replace(/^\d+-/, "");
+  const socketPath = join(dirname(dirname(dirname(dbPath))), `zed-${channel}.sock`);
+  let table: string;
+  try {
+    table = readProcNetUnix();
+  } catch {
+    return true;
+  }
+  return table.split("\n").some((line) => line.trimEnd().endsWith(` ${socketPath}`));
+}
+
+/** Zed's current session id, written to kv_store on every launch. */
+function readZedSessionId(db: DatabaseSync): string | undefined {
+  try {
+    const row = db.prepare("SELECT value FROM kv_store WHERE key = 'session_id'").get() as
+      | { value: unknown }
+      | undefined;
+    return typeof row?.value === "string" && row.value ? row.value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Whether a window open in the current Zed session contains `cwd`.
+ * Closing a window clears its workspace's session_id, so this tracks open windows.
+ */
+export function zedSessionHasWorkspace(dbPath: string, cwd: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  const configuredEnv = resolvePiConfigEnv(env);
+  const handle = openZedDatabase(dbPath, configuredEnv);
+  if (!handle) return false;
+  try {
+    const sessionId = readZedSessionId(handle.db);
+    if (!sessionId) return false;
+    const rows = handle.db.prepare("SELECT paths FROM workspaces WHERE session_id = ?").all(sessionId) as Array<{
+      paths: string | null;
+    }>;
+    return rows.some((row) => scoreWorkspace(row.paths, cwd, configuredEnv) > 0);
+  } catch {
+    return false;
+  } finally {
+    try {
+      handle.db.close();
+    } finally {
+      handle.cleanup();
+    }
+  }
 }
 
 // Backward-compatible wrapper: Zed callers and tests import this name, while the
@@ -259,6 +325,8 @@ export interface ResolveZedSelectionOptions {
   now?: number;
   readFile?: (path: string) => string;
   env?: NodeJS.ProcessEnv;
+  /** Only consider windows open in Zed's current session (out-of-terminal mode). */
+  currentSessionOnly?: boolean;
 }
 
 export function resolveZedSelection(options: ResolveZedSelectionOptions): EditorSelectionSnapshot | undefined {
@@ -270,7 +338,12 @@ export function resolveZedSelection(options: ResolveZedSelectionOptions): Editor
   const { db, cleanup } = dbHandle;
 
   try {
-    const rows = db
+    let sessionId: string | undefined;
+    if (options.currentSessionOnly) {
+      sessionId = readZedSessionId(db);
+      if (!sessionId) return undefined;
+    }
+    const allRows = db
       .prepare(
         `SELECT i.kind AS item_kind,
                 e.item_id AS editor_id,
@@ -293,6 +366,18 @@ export function resolveZedSelection(options: ResolveZedSelectionOptions): Editor
       timestamp: number;
       buffer_path: string | null;
     }>;
+    const sessionWorkspaceIds = sessionId
+      ? new Set(
+          (
+            db.prepare("SELECT workspace_id FROM workspaces WHERE session_id = ?").all(sessionId) as Array<{
+              workspace_id: string | number;
+            }>
+          ).map((row) => String(row.workspace_id)),
+        )
+      : undefined;
+    const rows = sessionWorkspaceIds
+      ? allRows.filter((row) => sessionWorkspaceIds.has(String(row.workspace_id)))
+      : allRows;
 
     // Filter to Editor rows only, score by workspace match.
     // editor_id may be string or number — Zed uses INTEGER primary keys,
@@ -433,13 +518,20 @@ export function startZedPolling(
     intervalMs?: number;
     generation?: number;
     env?: NodeJS.ProcessEnv;
+    /** Test seam for the out-of-terminal Zed liveness probe. */
+    isAlive?: () => boolean;
   },
 ): boolean {
   const env = resolvePiConfigEnv(options?.env ?? process.env);
-  if (!isZedTerminal(env)) return false;
+  const inZedTerminal = isZedTerminal(env);
 
   const dbPath = options?.dbPath ?? resolveZedDbPath(env);
   if (!dbPath) return false;
+
+  // Outside Zed's terminal, attach only while a running Zed has this project
+  // open — the same condition a VS Code/JetBrains lock file expresses.
+  const isAlive = options?.isAlive ?? (() => isZedProcessAlive(dbPath, env));
+  if (!inZedTerminal && !(isAlive() && zedSessionHasWorkspace(dbPath, ctx.cwd, env))) return false;
 
   const intervalMs = resolveZedPollIntervalMs(env, options?.intervalMs);
   const generation = options?.generation;
@@ -462,6 +554,15 @@ export function startZedPolling(
     if (generation !== undefined && runtime.sessionGeneration !== generation) return "stop";
     // Guard: WebSocket has taken over
     if (runtime.connection && runtime.connectedServer?.ide !== "zed") return "stop";
+    // Guard: detected (non-terminal) Zed has quit
+    if (!inZedTerminal && !isAlive()) {
+      runtime.connectionStatus = "disconnected";
+      runtime.connectedServer = undefined;
+      runtime.connectionMessage = "Zed closed.";
+      clearLatestSelection(runtime, ctx as ExtensionContext);
+      updateIdeUi(runtime, ctx as ExtensionContext);
+      return "stop";
+    }
 
     // Check whether the WAL sidecar has changed since the last poll.
     // On WSL the DB snapshot is expensive (~10 MB copy + checkpoint),
@@ -484,7 +585,7 @@ export function startZedPolling(
 
     let snapshot: EditorSelectionSnapshot | undefined;
     try {
-      snapshot = resolveZedSelection({ dbPath, cwd: ctx.cwd, env });
+      snapshot = resolveZedSelection({ dbPath, cwd: ctx.cwd, env, currentSessionOnly: !inZedTerminal });
     } catch {
       snapshot = undefined;
     }
