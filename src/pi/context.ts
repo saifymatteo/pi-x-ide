@@ -1,6 +1,6 @@
 // ABOUTME: Adds concise IDE file and selection metadata as a model-visible custom message.
 // ABOUTME: Leaves the user's prompt unchanged so the agent can inspect source files directly.
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent" with {
+import type { BeforeAgentStartEvent, ExtensionAPI } from "@earendil-works/pi-coding-agent" with {
   "resolution-mode": "import",
 };
 import { formatEditorContextMessage } from "../shared/format.js";
@@ -23,7 +23,7 @@ export function registerContextHandlers(pi: ExtensionAPI, runtime: PiIdeRuntime)
         const snapshot = runtime.latestSelection;
         runtime.attachState = "sent";
         updateIdeUi(runtime, ctx);
-        if (promptContainsContextMarker(event.prompt, snapshot)) return;
+        if (promptContainsContextMarker(runPromptText(event), snapshot)) return;
 
         return {
           message: {
@@ -39,6 +39,14 @@ export function registerContextHandlers(pi: ExtensionAPI, runtime: PiIdeRuntime)
 }
 
 export const IDE_CONTEXT_MESSAGE_TYPE = "pi-x-ide/context";
+
+/** Text that started the run: the user prompt, or a custom message's text (e.g. a diagnostic fix request). */
+function runPromptText(event: BeforeAgentStartEvent): string {
+  if (event.messageType === "user") return event.prompt;
+  const { content } = event.message;
+  if (typeof content === "string") return content;
+  return content.map((part) => (part.type === "text" ? part.text : "")).join("\n");
+}
 
 function promptContainsContextMarker(prompt: string, snapshot: EditorSelectionSnapshot): boolean {
   return (

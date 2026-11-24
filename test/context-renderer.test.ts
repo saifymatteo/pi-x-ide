@@ -46,7 +46,7 @@ function createHarness() {
 void test("adds concise IDE metadata as a visible custom message without changing the user prompt", () => {
   const h = createHarness();
   setLatestSelection(h.runtime, snapshot);
-  const result = h.fire("before_agent_start", { prompt: "Explain this" }) as {
+  const result = h.fire("before_agent_start", { messageType: "user", prompt: "Explain this" }) as {
     message: { customType: string; content: string; display: boolean };
   };
   assert.deepEqual(result, {
@@ -64,7 +64,7 @@ void test("adds concise IDE metadata as a visible custom message without changin
 void test("omits selection metadata for open-file-only context", () => {
   const h = createHarness();
   setLatestSelection(h.runtime, { ...snapshot, ranges: [] });
-  const result = h.fire("before_agent_start", { prompt: "Explain this" }) as {
+  const result = h.fire("before_agent_start", { messageType: "user", prompt: "Explain this" }) as {
     message: { content: string };
   };
   assert.equal(result.message.content, "### IDE Context\n- **IDE**: vscode\n- **File**: `package.json`");
@@ -73,10 +73,10 @@ void test("omits selection metadata for open-file-only context", () => {
 
 void test("does not add IDE context when attachment is disabled or no selection is available", () => {
   const h = createHarness();
-  assert.equal(h.fire("before_agent_start", { prompt: "ordinary prompt" }), undefined);
+  assert.equal(h.fire("before_agent_start", { messageType: "user", prompt: "ordinary prompt" }), undefined);
   setLatestSelection(h.runtime, snapshot);
   h.runtime.enabled = false;
-  assert.equal(h.fire("before_agent_start", { prompt: "ordinary prompt" }), undefined);
+  assert.equal(h.fire("before_agent_start", { messageType: "user", prompt: "ordinary prompt" }), undefined);
   assert.equal(h.runtime.attachState, "pending");
 });
 
@@ -85,6 +85,7 @@ void test("does not duplicate attached context markers in the submitted prompt",
   setLatestSelection(h.runtime, snapshot);
   assert.equal(
     h.fire("before_agent_start", {
+      messageType: "user",
       prompt: `<system-reminder><selected-context>already attached ${snapshot.filePath}`,
     }),
     undefined,
@@ -99,4 +100,16 @@ void test("context metadata formatter never includes selected source contents", 
   assert.match(formatted, /\*\*File\*\*: `package\.json`/);
   assert.match(formatted, /\*\*Selection\*\*: L2-L4/);
   assert.doesNotMatch(formatted, /description|Pi extension package/);
+});
+
+void test("skips IDE context when a custom diagnostic message starts the run", () => {
+  const h = createHarness();
+  setLatestSelection(h.runtime, snapshot);
+  assert.equal(
+    h.fire("before_agent_start", {
+      messageType: "custom",
+      message: { content: [{ type: "text", text: "<!-- pi-x-ide/diagnostic-context -->\nfix it" }] },
+    }),
+    undefined,
+  );
 });
