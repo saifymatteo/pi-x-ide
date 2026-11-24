@@ -618,6 +618,14 @@ export function startZedPolling(
   runtime.zedPollIntervalMs = intervalMs;
   updateIdeUi(runtime, ctx as ExtensionContext);
 
+  const disconnectDetectedZed = (message: string): void => {
+    runtime.connectionStatus = "disconnected";
+    runtime.connectedServer = undefined;
+    runtime.connectionMessage = message;
+    clearLatestSelection(runtime, ctx as ExtensionContext);
+    updateIdeUi(runtime, ctx as ExtensionContext);
+  };
+
   const pollTick = (): "continue" | "stop" => {
     // Guard: session generation changed
     if (generation !== undefined && runtime.sessionGeneration !== generation) return "stop";
@@ -625,11 +633,7 @@ export function startZedPolling(
     if (runtime.connection && runtime.connectedServer?.ide !== "zed") return "stop";
     // Guard: detected (non-terminal) Zed has quit
     if (!inZedTerminal && !isAlive()) {
-      runtime.connectionStatus = "disconnected";
-      runtime.connectedServer = undefined;
-      runtime.connectionMessage = "Zed closed.";
-      clearLatestSelection(runtime, ctx as ExtensionContext);
-      updateIdeUi(runtime, ctx as ExtensionContext);
+      disconnectDetectedZed("Zed closed.");
       return "stop";
     }
 
@@ -665,6 +669,11 @@ export function startZedPolling(
         runtime.zedPollSelectionKey = key;
         setLatestSelection(runtime, snapshot, ctx as ExtensionContext);
       }
+    } else if (!inZedTerminal && !zedSessionHasWorkspace(dbPath, ctx.cwd, env)) {
+      // Detected (non-terminal) Zed closed this project's window; only checked
+      // when no snapshot was found, so the common path opens the DB once.
+      disconnectDetectedZed("Zed closed this project.");
+      return "stop";
     } else {
       clearLatestSelection(runtime, ctx as ExtensionContext);
     }

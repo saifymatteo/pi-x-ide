@@ -857,3 +857,23 @@ void test("startZedWatch attaches once Zed opens the project", async () => {
   stopZedPolling(runtime);
   assert.equal(runtime.zedWatchFiber, undefined);
 });
+
+void test("detected Zed polling disconnects when the project window closes", async () => {
+  const { dir, dbPath, cleanup } = await createSessionFixture();
+  after(cleanup);
+  insertSessionEditor(dbPath, 1, dir, "current", "hello world");
+  const runtime = createRuntime();
+  assert.equal(
+    startZedPolling(runtime, createContext(dir), { dbPath, env: {}, intervalMs: 100, isAlive: () => true }),
+    true,
+  );
+
+  const db = new DatabaseSync(dbPath);
+  db.prepare("UPDATE workspaces SET session_id = NULL WHERE workspace_id = 1").run();
+  db.close();
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  assert.equal(runtime.zedPollFiber, undefined);
+  assert.equal(runtime.connectionStatus, "disconnected");
+  assert.equal(runtime.connectedServer, undefined);
+});
